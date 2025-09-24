@@ -1,0 +1,26 @@
+name: classimed
+description: Aplicativo para classificação de incidentes médicos - ClassiMed
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cloud_firestore: ^6.0.1
+  firebase_auth: ^6.0.2
+  firebase_core: ^4.1.0
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+    - assets/logo-robo-nome.png
