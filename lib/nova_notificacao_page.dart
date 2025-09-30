@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class NovaNotificacaoPage extends StatefulWidget {
-  final Map<String, dynamic>? notificacao; // <- pode vir preenchida (edição)
+  final Map<String, dynamic>? notificacao;
 
   const NovaNotificacaoPage({super.key, this.notificacao});
 
@@ -23,7 +23,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   void initState() {
     super.initState();
 
-    // Se veio uma notificação, preencher os campos
     if (widget.notificacao != null) {
       final n = widget.notificacao!;
       _nomeController.text = n["nome"] ?? "";
@@ -34,7 +33,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     }
   }
 
-  // === MAPAS DE PONTUAÇÃO ===
   final Map<String, int> tipoIncidentePontuacao = {
     "Queda": 2,
     "Erro de Medicação": 3,
@@ -87,7 +85,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     "Óbito": 1000,
   };
 
-  // === FUNÇÃO DE SALVAR RASCUNHO ===
   Future<void> _salvarRascunho() async {
     final prefs = await SharedPreferences.getInstance();
     final rascunhos = prefs.getStringList("draft_notifications") ?? [];
@@ -100,16 +97,14 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       "sintomas": sintomas,
     };
 
-    // Se estou editando, substituo o rascunho original
+
     if (widget.notificacao != null) {
-      // Apagar o antigo
       rascunhos.removeWhere((e) {
         final data = jsonDecode(e) as Map<String, dynamic>;
         return data["nome"] == widget.notificacao!["nome"];
       });
     }
 
-    // Adicionar o novo/atualizado
     rascunhos.add(jsonEncode(notificacao));
     await prefs.setStringList("draft_notifications", rascunhos);
 
@@ -118,7 +113,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     );
   }
 
-  // === FUNÇÃO DE ENVIAR NOTIFICAÇÃO ===
   Future<void> _enviarNotificacao() async {
     final prefs = await SharedPreferences.getInstance();
     final notificacoes = prefs.getStringList("final_notifications") ?? [];
@@ -137,7 +131,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     notificacoes.add(jsonEncode(notificacao));
     await prefs.setStringList("final_notifications", notificacoes);
 
-    // Exibir resultado
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -153,7 +146,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     );
   }
 
-  // === FUNÇÃO DE CLASSIFICAÇÃO AUTOMÁTICA ===
   String _classificarNotificacao() {
     int pontuacaoTotal = 0;
 
@@ -173,7 +165,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       pontuacaoTotal += sintomasPontuacao[sintoma] ?? 0;
     }
 
-    // Regras de classificação
     if (pontuacaoTotal >= 1000) {
       return "Óbito";
     } else if (pontuacaoTotal >= 9) {
@@ -187,7 +178,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     }
   }
 
-  // === WIDGET DE BOTÕES DE OPÇÃO ===
   Widget _buildOptionButtons(String titulo, List<String> opcoes,
       String? selecionado, Function(String) onSelect) {
     return Column(
@@ -217,7 +207,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     );
   }
 
-  // === WIDGET DE BOTÕES MULTIPLOS (SINTOMAS) ===
   Widget _buildMultiSelect(String titulo, List<String> opcoes) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,7 +257,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Nome da notificação
             TextField(
               controller: _nomeController,
               decoration: const InputDecoration(
