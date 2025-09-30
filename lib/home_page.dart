@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'nova_notificacao_page.dart';
-import 'minhas_notificacoes_page.dart'; // import da nova tela
+import 'minhas_notificacoes_page.dart'; 
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -79,7 +79,7 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Botão redondo com ícone +
+            
             ElevatedButton(
               onPressed: _isLoading ? null : _iniciarNotificacao,
               style: ElevatedButton.styleFrom(
@@ -96,7 +96,6 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 16),
 
-            // Texto abaixo do botão
             Text(
               "Iniciar Nova Notificação",
               style: TextStyle(
@@ -108,7 +107,6 @@ class _HomePageState extends State<HomePage> {
 
             const SizedBox(height: 24),
 
-            // Spinner de carregamento
             if (_isLoading)
               const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
