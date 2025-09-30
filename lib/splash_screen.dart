@@ -13,7 +13,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Timer para ir ao login após 3 segundos
     Timer(const Duration(seconds: 3), () {
       Navigator.pushReplacement(
         context,
