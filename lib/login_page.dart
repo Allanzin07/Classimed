@@ -12,12 +12,10 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   void _onLogin() {
-    // Exibe feedback
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Login realizado com sucesso!")),
     );
 
-    // Vai para a HomePage pela rota registrada no main.dart
     Future.delayed(const Duration(milliseconds: 500), () {
       Navigator.pushReplacementNamed(context, '/home');
     });
@@ -41,7 +39,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Logo
                 Image.asset(
                   'assets/logo-robo-nome.png',
                   width: 140,
@@ -49,7 +46,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 32),
 
-                // Campo Email
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -63,7 +59,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Campo Senha
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -77,7 +72,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Botão Entrar
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -98,7 +92,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // Botão Registrar-se
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
