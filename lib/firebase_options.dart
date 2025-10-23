@@ -41,20 +41,20 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDk7E1xGtH0LhEdMj75qiiNnc_TXJli4Ik',
-    appId: '1:982900658398:web:4884d2ce1e06445ead324f',
-    messagingSenderId: '982900658398',
-    projectId: 'chatflutter-1f705',
-    authDomain: 'chatflutter-1f705.firebaseapp.com',
-    storageBucket: 'chatflutter-1f705.firebasestorage.app',
+    apiKey: 'AIzaSyCQ4YtcPakXNF2jOgsgYowHyJCWYzYqqZU',
+    appId: '1:764100098173:web:4492c66eeb91d8c59cd914',
+    messagingSenderId: '764100098173',
+    projectId: 'classimed-dfe31',
+    authDomain: 'classimed-dfe31.firebaseapp.com',
+    storageBucket: 'classimed-dfe31.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAMVK-chNzSNNH5TRz8QHR7kXTQz7jZ1Ro',
-    appId: '1:982900658398:android:99333af1fe55eecfad324f',
-    messagingSenderId: '982900658398',
-    projectId: 'chatflutter-1f705',
-    storageBucket: 'chatflutter-1f705.firebasestorage.app',
+    apiKey: 'AIzaSyDoX5HFPkrG7oP-cRy4LT7fDZw4poIJFUY',
+    appId: '1:764100098173:android:c1929e502edda6489cd914',
+    messagingSenderId: '764100098173',
+    projectId: 'classimed-dfe31',
+    storageBucket: 'classimed-dfe31.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -80,11 +80,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDk7E1xGtH0LhEdMj75qiiNnc_TXJli4Ik',
-    appId: '1:982900658398:web:b737efb2b6369474ad324f',
-    messagingSenderId: '982900658398',
-    projectId: 'chatflutter-1f705',
-    authDomain: 'chatflutter-1f705.firebaseapp.com',
-    storageBucket: 'chatflutter-1f705.firebasestorage.app',
+    apiKey: 'AIzaSyCQ4YtcPakXNF2jOgsgYowHyJCWYzYqqZU',
+    appId: '1:764100098173:web:eb7748ab860904129cd914',
+    messagingSenderId: '764100098173',
+    projectId: 'classimed-dfe31',
+    authDomain: 'classimed-dfe31.firebaseapp.com',
+    storageBucket: 'classimed-dfe31.firebasestorage.app',
   );
+
 }

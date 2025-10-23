@@ -1,73 +1,26 @@
 {
   "project_info": {
-    "project_number": "982900658398",
-    "project_id": "chatflutter-1f705",
-    "storage_bucket": "chatflutter-1f705.firebasestorage.app"
+    "project_number": "764100098173",
+    "project_id": "classimed-dfe31",
+    "storage_bucket": "classimed-dfe31.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:982900658398:android:b48db1f3042549a9ad324f",
-        "android_client_info": {
-          "package_name": "com.example.chat"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "982900658398-t91ab14riih4m9212ao69n3p8npfmrc3.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.chat",
-            "certificate_hash": "f57cba0c3aed2170a55c84bccb9da8984172227f"
-          }
-        },
-        {
-          "client_id": "982900658398-go9mt9blgagj0bci4gfkkdfv210ku13r.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAMVK-chNzSNNH5TRz8QHR7kXTQz7jZ1Ro"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "982900658398-go9mt9blgagj0bci4gfkkdfv210ku13r.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:982900658398:android:99333af1fe55eecfad324f",
+        "mobilesdk_app_id": "1:764100098173:android:c1929e502edda6489cd914",
         "android_client_info": {
           "package_name": "com.example.classi_med"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "982900658398-go9mt9blgagj0bci4gfkkdfv210ku13r.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAMVK-chNzSNNH5TRz8QHR7kXTQz7jZ1Ro"
+          "current_key": "AIzaSyDoX5HFPkrG7oP-cRy4LT7fDZw4poIJFUY"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "982900658398-go9mt9blgagj0bci4gfkkdfv210ku13r.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

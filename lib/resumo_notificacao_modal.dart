@@ -1,0 +1,343 @@
+// lib/resumo_notificacao_modal.dart
+import 'package:flutter/material.dart';
+
+/// Abre a modal com o resumo detalhado da ocorrência.
+/// Exemplo de uso (na sua NovaNotificacaoPage, após salvar):
+/// await showResumoNotificacaoModal(
+///   context,
+///   dados: notificacao,           // Map<String, dynamic>
+///   pontuacao: pontuacao,         // int
+///   classificacao: classificacao, // String (ex.: "Leve", "Médio", "Grave", "Óbito")
+/// );
+Future<void> showResumoNotificacaoModal(
+  BuildContext context, {
+  required Map<String, dynamic> dados,
+  required int pontuacao,
+  required String classificacao,
+}) async {
+  final Color corClasse = _badgeColor(classificacao);
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      return DraggableScrollableSheet(
+        expand: false,
+        // Abre mais alta e permite quase fullscreen
+        initialChildSize: 0.92,
+        minChildSize: 0.6,
+        maxChildSize: 0.98,
+        builder: (context, scrollController) {
+          final nome     = (dados["nome"] ?? "") as String;
+          final tipo     = (dados["tipoIncidente"] ?? "-") as String;
+          final local    = (dados["localIncidente"] ?? "-") as String;
+          final turno    = (dados["turno"] ?? "-") as String;
+          final sintomas = (dados["sintomas"] as List?)?.cast<String>() ?? const <String>[];
+          final dataHora = _fmtData(dados["dataHora"] as String?);
+
+          final bottomInset = MediaQuery.of(context).viewInsets.bottom; // teclado
+
+          return Padding(
+            padding: EdgeInsets.only(top: 8, bottom: bottomInset > 0 ? bottomInset : 0),
+            child: SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle (barrinha) + respiro
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+
+                  // Cabeçalho
+                  Row(
+                    children: [
+                      const Icon(Icons.fact_check_outlined, size: 22),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          "Resumo da Ocorrência",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: corClasse,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          classificacao,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Barra de risco / pontuação
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: _riskProgress(pontuacao),
+                      minHeight: 10,
+                      backgroundColor: Colors.grey.shade200,
+                      color: corClasse,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Pontuação total: $pontuacao",
+                    style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Identificação
+                  _grupoCard(
+                    titulo: "Identificação",
+                    icon: Icons.badge_outlined,
+                    children: [
+                      _linha("Nome da ocorrência", nome.isEmpty ? "-" : nome),
+                      _linha("Data/Hora", dataHora),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Incidente
+                  _grupoCard(
+                    titulo: "Incidente",
+                    icon: Icons.local_hospital_outlined,
+                    children: [
+                      _linha("Tipo de Incidente", tipo),
+                      _linha("Local do Incidente", local),
+                      _linha("Turno", turno),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Sintomas
+                  _grupoCard(
+                    titulo: "Sintomas Selecionados",
+                    icon: Icons.healing_outlined,
+                    children: [
+                      if (sintomas.isEmpty)
+                        Text(
+                          "Nenhum sintoma selecionado",
+                          style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: sintomas
+                              .map((s) => Chip(
+                                    label: Text(s),
+                                    backgroundColor: Colors.grey[100],
+                                    side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                                  ))
+                              .toList(),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Grau da ocorrência
+                  _grupoCard(
+                    titulo: "Grau da Ocorrência",
+                    icon: Icons.verified_outlined,
+                    children: [
+                      Row(
+                        children: [
+                          Container
+                          (
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: corClasse,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              classificacao,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "Classificação calculada com base nos campos selecionados.",
+                              style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Ações
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.check),
+                          label: const Text("Concluir"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.lightBlueAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          icon: const Icon(Icons.home_outlined),
+                          label: const Text("Voltar"),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Respeita o SafeArea inferior quando não há teclado
+                  SizedBox(height: MediaQuery.of(context).padding.bottom),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+/// -------------------- helpers visuais/formatacao --------------------
+
+Widget _grupoCard({
+  required String titulo,
+  required IconData icon,
+  required List<Widget> children,
+}) {
+  return Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.lightBlueAccent.withOpacity(0.15),
+              child: Icon(icon, color: Colors.lightBlueAccent, size: 18),
+            ),
+            const SizedBox(width: 8),
+            Text(titulo, style: const TextStyle(fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _linha(String rotulo, String valor) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 160,
+          child: Text(
+            "$rotulo:",
+            style: TextStyle(
+              color: Colors.black.withOpacity(0.65),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            valor.isEmpty ? "-" : valor,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+String _fmtData(String? iso) {
+  if (iso == null) return "-";
+  try {
+    final dt = DateTime.parse(iso).toLocal();
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return "$d/$m/$y $hh:$mm";
+  } catch (_) {
+    return iso ?? "-";
+  }
+}
+
+double _riskProgress(int p) {
+  if (p >= 1000) return 1.0;
+  final capped = p.clamp(0, 10);
+  return capped / 10.0;
+}
+
+Color _badgeColor(String classe) {
+  switch (classe) {
+    case "Sem dano":
+      return Colors.grey.shade700;
+    case "Leve":
+      return Colors.green.shade600;
+    case "Médio":
+      return Colors.orange.shade700;
+    case "Grave":
+      return Colors.red.shade600;
+    case "Óbito":
+      return Colors.black87;
+    default:
+      return Colors.blueGrey;
+  }
+}
