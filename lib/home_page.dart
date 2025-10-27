@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'nova_notificacao_page.dart';
 import 'minhas_notificacoes_page.dart';
 
@@ -47,42 +48,46 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     });
   }
 
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao sair: $e")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      // Fundo moderno
       body: Stack(
         children: [
-          // Gradiente radial azul-bebê → branco
+          // Fundo com gradiente
           Container(
             decoration: const BoxDecoration(
               gradient: RadialGradient(
                 center: Alignment(0, -0.6),
                 radius: 1.3,
-                colors: [
-                  Color(0xFFB3E5FC), // azul-bebê
-                  Colors.white,       // branco
-                ],
+                colors: [Color(0xFFB3E5FC), Colors.white],
                 stops: [0.15, 1.0],
               ),
             ),
           ),
 
-          // Conteúdo
+          // Conteúdo principal
           SafeArea(
             child: Column(
               children: [
-                // AppBar custom translúcida com logo central
                 _AppBarLogo(),
-
-                // Corpo
                 Expanded(
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Botão circular com brilho pulsante
                         _GlowingCTA(
                           pulse: _pulse,
                           isLoading: _isLoading,
@@ -99,7 +104,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         ),
                         const SizedBox(height: 28),
 
-                        // Atalho elegante para Minhas Notificações
+                        // Card "Minhas Notificações"
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: _GlassCard(
@@ -108,10 +113,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                 backgroundColor: Colors.lightBlueAccent.withOpacity(0.15),
                                 child: const Icon(Icons.notifications, color: Colors.lightBlueAccent),
                               ),
-                              title: const Text(
-                                "Minhas Notificações",
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
+                              title: const Text("Minhas Notificações",
+                                  style: TextStyle(fontWeight: FontWeight.w700)),
                               subtitle: Text(
                                 "Veja, edite ou apague notificações salvas",
                                 style: TextStyle(color: Colors.black.withOpacity(0.6)),
@@ -136,11 +139,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
           ),
 
-          // Drawer (opcional) – mantido, mas com visual atualizado
+          // Drawer invisível apenas para permitir o botão flutuante abrir o menu
           _ModernDrawer(),
         ],
       ),
-      // Ícone do menu (abre o Drawer custom) — posicionado no topo
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
       floatingActionButton: Builder(
         builder: (context) => Padding(
@@ -153,7 +155,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
         ),
       ),
-      drawer: const _DrawerContent(),
+      drawer: _DrawerContent(onLogout: _logout),
       backgroundColor: Colors.transparent,
     );
   }
@@ -163,12 +165,10 @@ class _AppBarLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(56, 8, 16, 8), // espaço por causa do botão-menu flutuante
+      padding: const EdgeInsets.fromLTRB(56, 8, 16, 8),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.65),
-        border: const Border(
-          bottom: BorderSide(color: Color(0x1F000000)),
-        ),
+        border: const Border(bottom: BorderSide(color: Color(0x1F000000))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -196,7 +196,6 @@ class _GlowingCTA extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Halo pulsante
         ScaleTransition(
           scale: Tween<double>(begin: 0.95, end: 1.08).animate(
             CurvedAnimation(parent: pulse, curve: Curves.easeInOut),
@@ -217,7 +216,6 @@ class _GlowingCTA extends StatelessWidget {
             ),
           ),
         ),
-        // Botão redondo com gradiente
         Material(
           color: Colors.transparent,
           shape: const CircleBorder(),
@@ -231,10 +229,7 @@ class _GlowingCTA extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF81D4FA), // azul bebê forte
-                    Color(0xFF29B6F6), // azul claro
-                  ],
+                  colors: [Color(0xFF81D4FA), Color(0xFF29B6F6)],
                 ),
               ),
               child: SizedBox(
@@ -291,20 +286,21 @@ class _GlassCard extends StatelessWidget {
 class _ModernDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Apenas um container “placeholder” para permitir o botão flutuante abrir o Drawer
     return const SizedBox.shrink();
   }
 }
 
 class _DrawerContent extends StatelessWidget {
-  const _DrawerContent();
+  final Future<void> Function() onLogout;
+
+  const _DrawerContent({required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
       child: Column(
         children: [
-          // Cabeçalho com gradiente claro
+          // Cabeçalho
           Container(
             height: 150,
             width: double.infinity,
@@ -328,6 +324,8 @@ class _DrawerContent extends StatelessWidget {
               ),
             ),
           ),
+
+          // 🔹 Minhas Notificações
           ListTile(
             leading: Icon(Icons.notifications, color: Colors.lightBlue[700]),
             title: const Text("Minhas Notificações"),
@@ -337,6 +335,19 @@ class _DrawerContent extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (_) => const MinhasNotificacoesPage()),
               );
+            },
+          ),
+
+          // 🔹 Botão Sair
+          ListTile(
+            leading: Icon(Icons.logout, color: Colors.red[700]),
+            title: const Text(
+              "Sair",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            onTap: () async {
+              Navigator.pop(context);
+              await onLogout();
             },
           ),
         ],
