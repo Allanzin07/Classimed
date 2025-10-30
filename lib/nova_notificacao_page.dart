@@ -5,6 +5,149 @@ import 'dart:convert';
 // IMPORTA a modal nova (arquivo separado)
 import 'resumo_notificacao_modal.dart';
 
+/// =====================
+/// [NOVO] ENGINE DE PONTUAÇÃO / CLASSIFICAÇÃO
+/// =====================
+class RiskConfig {
+  final Map<String, int> tipo;
+  final Map<String, int> local;
+  final Map<String, int> turno;
+  final Map<String, int> sintomas;
+
+  // multiplicadores contextuais (suaves)
+  final Map<String, double> localMult;
+  final Map<String, double> turnoMult;
+
+  // cap e thresholds
+  final int capSintomas;
+  final Map<String, int> thresholds; // {"Leve":2, "Médio":5, "Grave":9, "Óbito":1000}
+
+  const RiskConfig({
+    required this.tipo,
+    required this.local,
+    required this.turno,
+    required this.sintomas,
+    required this.localMult,
+    required this.turnoMult,
+    required this.capSintomas,
+    required this.thresholds,
+  });
+}
+
+class ScoreContext {
+  final String? tipoIncidente;
+  final String? localIncidente;
+  final String? turno;
+  final List<String> sintomas;
+
+  const ScoreContext({
+    required this.tipoIncidente,
+    required this.localIncidente,
+    required this.turno,
+    required this.sintomas,
+  });
+}
+
+class ScoredResult {
+  final int raw;        // pontuação “bruta”
+  final double scaled;  // normalizado (0..10)
+  final String classe;
+
+  const ScoredResult(this.raw, this.scaled, this.classe);
+}
+
+class RiskScorer {
+  final RiskConfig cfg;
+  RiskScorer(this.cfg);
+
+  List<String> _sanitizeSymptoms(List<String> s) {
+    final set = s.toSet();
+    // Curto-circuito: críticos absolutos
+    if (set.contains("Óbito")) return const ["Óbito"];
+    if (set.contains("Parada cardiorrespiratória")) {
+      set.remove("Near miss"); // evitar combinações incoerentes
+    }
+    return set.toList();
+  }
+
+  int _synergyBonus(ScoreContext c) {
+    int bonus = 0;
+    final s = c.sintomas.toSet();
+
+    // Exemplos de sinergia (ajuste conforme clínica)
+    if (c.tipoIncidente == "Queda" && s.contains("Fratura")) bonus += 2;
+    if (c.tipoIncidente == "Erro de Medicação" &&
+        s.contains("Reação alérgica controlada")) bonus += 2;
+    if ((c.localIncidente == "UTI" || c.localIncidente == "Centro Cirúrgico") &&
+        (s.contains("Hemorragia externa") || s.contains("Hemorragia interna"))) {
+      bonus += 2;
+    }
+    return bonus;
+  }
+
+  String _classify(int p) {
+    if (p >= (cfg.thresholds["Óbito"] ?? 1000)) return "Óbito";
+    if (p >= (cfg.thresholds["Grave"] ?? 9))   return "Grave";
+    if (p >= (cfg.thresholds["Médio"] ?? 5))   return "Médio";
+    if (p >= (cfg.thresholds["Leve"] ?? 2))    return "Leve";
+    return "Sem dano";
+  }
+
+  ScoredResult score(ScoreContext ctx0) {
+    final sanitized = _sanitizeSymptoms(ctx0.sintomas);
+
+    final ctx = ScoreContext(
+      tipoIncidente: ctx0.tipoIncidente,
+      localIncidente: ctx0.localIncidente,
+      turno: ctx0.turno,
+      sintomas: sanitized,
+    );
+
+    // Curto-circuito crítico
+    if (ctx.sintomas.contains("Óbito")) {
+      return ScoredResult(1000, 10.0, "Óbito");
+    }
+
+    int total = 0;
+
+    // Pesos base
+    total += cfg.tipo[ctx.tipoIncidente] ?? 0;
+    total += cfg.local[ctx.localIncidente] ?? 0;
+    total += cfg.turno[ctx.turno] ?? 0;
+
+    // Sintomas com cap
+    int sintSum = 0;
+    for (final s in ctx.sintomas) {
+      sintSum += cfg.sintomas[s] ?? 0;
+    }
+    sintSum = sintSum.clamp(0, cfg.capSintomas);
+    total += sintSum;
+
+    // Sinergias
+    total += _synergyBonus(ctx);
+
+    // Multiplicadores contextuais
+    double mult = 1.0;
+    if (ctx.localIncidente != null) {
+      mult *= (cfg.localMult[ctx.localIncidente] ?? 1.0);
+    }
+    if (ctx.turno != null) {
+      mult *= (cfg.turnoMult[ctx.turno] ?? 1.0);
+    }
+    total = (total * mult).round();
+
+    // Normalização simples 0..10 (ajuste o divisor conforme necessidade)
+    final scaled = (total >= 1000) ? 10.0 : (total / 10.0).clamp(0.0, 10.0);
+
+    final classe = _classify(total);
+    return ScoredResult(total, scaled, classe);
+  }
+}
+
+/// =====================
+/// FIM DO ENGINE NOVO
+/// =====================
+
 class NovaNotificacaoPage extends StatefulWidget {
   final Map<String, dynamic>? notificacao; // <- pode vir preenchida (edição)
 
@@ -22,6 +165,9 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   String? turno;
   List<String> sintomas = [];
 
+  // [NOVO] scorer configurável
+  late RiskScorer scorer;
+
   @override
   void initState() {
     super.initState();
@@ -34,9 +180,32 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       turno = n["turno"];
       sintomas = List<String>.from(n["sintomas"] ?? []);
     }
+
+    // [NOVO] instanciar scorer com sua configuração
+    scorer = RiskScorer(RiskConfig(
+      tipo: tipoIncidentePontuacao,
+      local: localIncidentePontuacao,
+      turno: turnoPontuacao,
+      sintomas: sintomasPontuacao,
+      localMult: {
+        "UTI": 1.2,
+        "Centro Cirúrgico": 1.2,
+      },
+      turnoMult: {
+        "Madrugada (01h-07h)": 1.1,
+      },
+      capSintomas: 6,
+      thresholds: const {
+        "Sem dano": 0,
+        "Leve": 2,
+        "Médio": 5,
+        "Grave": 9,
+        "Óbito": 1000,
+      },
+    ));
   }
 
-  // === MAPAS DE PONTUAÇÃO ===
+  // === MAPAS DE PONTUAÇÃO (seus originais) ===
   final Map<String, int> tipoIncidentePontuacao = {
     "Queda": 2,
     "Erro de Medicação": 3,
@@ -80,16 +249,18 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     "Dor intensa": 2,
     "Queda com hematoma": 2,
     "Reação alérgica controlada": 2,
+    "Reação alérgica descontrolada": 4,
     "Fratura": 3,
     "Convulsão": 4,
     "Hemorragia externa": 3,
-    "Hemorragia interna": 4,
+    "Hemorragia interna": 5,
+    "Infecção leve": 2,
     "Infecção grave": 4,
     "Parada cardiorrespiratória": 5,
     "Óbito": 1000,
   };
 
-  // === SALVAR RASCUNHO ===
+  // === SALVAR RASCUNHO (inalterado) ===
   Future<void> _salvarRascunho() async {
     final prefs = await SharedPreferences.getInstance();
     final rascunhos = prefs.getStringList("draft_notifications") ?? [];
@@ -119,6 +290,17 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     }
   }
 
+  // [NOVO] helper: sempre calcula o score atual do formulário
+  ScoredResult _scoreAtual() {
+    final ctx = ScoreContext(
+      tipoIncidente: tipoIncidente,
+      localIncidente: localIncidente,
+      turno: turno,
+      sintomas: sintomas,
+    );
+    return scorer.score(ctx);
+  }
+
   // === ENVIAR NOTIFICAÇÃO ===
   Future<void> _enviarNotificacao() async {
     // (Opcional) Validação básica
@@ -136,8 +318,10 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     final prefs = await SharedPreferences.getInstance();
     final notificacoes = prefs.getStringList("final_notifications") ?? [];
 
-    final resultadoClassificacao = _classificarNotificacao();
-    final pontuacao = _pontuacaoAtual;
+    // [TROCAR] => em vez de _classificarNotificacao/_pontuacaoAtual
+    final scored = _scoreAtual();
+    final resultadoClassificacao = scored.classe;
+    final pontuacao = scored.raw;
 
     final notificacao = {
       "nome": _nomeController.text,
@@ -164,32 +348,9 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     );
   }
 
-  // === CLASSIFICAÇÃO ===
-  String _classificarNotificacao() {
-    final p = _pontuacaoAtual;
-    if (p >= 1000) return "Óbito";
-    if (p >= 9) return "Grave";
-    if (p >= 5) return "Médio";
-    if (p >= 2) return "Leve";
-    return "Sem dano";
-  }
-
-  int get _pontuacaoAtual {
-    int pontuacaoTotal = 0;
-    if (tipoIncidente != null) {
-      pontuacaoTotal += tipoIncidentePontuacao[tipoIncidente] ?? 0;
-    }
-    if (localIncidente != null) {
-      pontuacaoTotal += localIncidentePontuacao[localIncidente] ?? 0;
-    }
-    if (turno != null) {
-      pontuacaoTotal += turnoPontuacao[turno] ?? 0;
-    }
-    for (var sintoma in sintomas) {
-      pontuacaoTotal += sintomasPontuacao[sintoma] ?? 0;
-    }
-    return pontuacaoTotal;
-  }
+  // [REMOVIDO] _classificarNotificacao()
+  // [REMOVIDO] _pontuacaoAtual
+  // [REMOVIDO] _riskProgress()
 
   Color _badgeColor(String classe) {
     switch (classe) {
@@ -206,13 +367,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       default:
         return Colors.blueGrey;
     }
-  }
-
-  double _riskProgress(int p) {
-    if (p >= 1000) return 1.0;
-    // Normaliza numa escala prática 0..10
-    final capped = p.clamp(0, 10);
-    return capped / 10.0;
   }
 
   // === UI HELPERS ===
@@ -326,10 +480,12 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   }
 
   Widget _classificacaoPreview() {
-    final classe = _classificarNotificacao();
+    // [TROCAR] usa o scorer em tempo real
+    final scored = _scoreAtual();
+    final classe = scored.classe;
     final color = _badgeColor(classe);
-    final p = _pontuacaoAtual;
-    final progress = _riskProgress(p);
+    final p = scored.raw;
+    final progress = (scored.scaled / 10.0).clamp(0.0, 1.0); // 0..1
 
     return Card(
       elevation: 3,
@@ -466,11 +622,13 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                     options: sintomasPontuacao.keys.toList(),
                     current: sintomas,
                     onToggle: (op, value) {
-                      if (value) {
-                        sintomas.add(op);
-                      } else {
-                        sintomas.remove(op);
-                      }
+                      setState(() {
+                        if (value) {
+                          sintomas.add(op);
+                        } else {
+                          sintomas.remove(op);
+                        }
+                      });
                     },
                   ),
                   const SizedBox(height: 12),
