@@ -1,5 +1,8 @@
 // lib/resumo_notificacao_modal.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 
 Future<void> showResumoNotificacaoModal(
   BuildContext context, {
@@ -24,18 +27,20 @@ Future<void> showResumoNotificacaoModal(
         minChildSize: 0.6,
         maxChildSize: 0.98,
         builder: (context, scrollController) {
-          final nome         = (dados["nome"] ?? "") as String;
-          final tipo         = (dados["tipoIncidente"] ?? "-") as String;
-          final local        = (dados["localIncidente"] ?? "-") as String;
-          final turno        = (dados["turno"] ?? "-") as String;
-          final sintomas     = (dados["sintomas"] as List?)?.cast<String>() ?? const <String>[];
-          final dataHora     = _fmtData(dados["dataHora"] as String?);
-          final observacoes  = (dados["observacoes"] ?? "") as String;
+          final nome = (dados["nome"] ?? "") as String;
+          final tipo = (dados["tipoIncidente"] ?? "-") as String;
+          final local = (dados["localIncidente"] ?? "-") as String;
+          final turno = (dados["turno"] ?? "-") as String;
+          final sintomas =
+              (dados["sintomas"] as List?)?.cast<String>() ?? const <String>[];
+          final dataHora = _fmtData(dados["dataHora"] as String?);
+          final observacoes = (dados["observacoes"] ?? "") as String;
 
           final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
           return Padding(
-            padding: EdgeInsets.only(top: 8, bottom: bottomInset > 0 ? bottomInset : 0),
+            padding: EdgeInsets.only(
+                top: 8, bottom: bottomInset > 0 ? bottomInset : 0),
             child: SingleChildScrollView(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -61,18 +66,22 @@ Future<void> showResumoNotificacaoModal(
                       const Expanded(
                         child: Text(
                           "Resumo da Ocorrência",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w800),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: corClasse,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           classificacao,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -127,7 +136,8 @@ Future<void> showResumoNotificacaoModal(
                       if (sintomas.isEmpty)
                         Text(
                           "Nenhum sintoma selecionado",
-                          style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                          style:
+                              TextStyle(color: Colors.black.withOpacity(0.6)),
                         )
                       else
                         Wrap(
@@ -137,7 +147,8 @@ Future<void> showResumoNotificacaoModal(
                               .map((s) => Chip(
                                     label: Text(s),
                                     backgroundColor: Colors.grey[100],
-                                    side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                                    side: BorderSide(
+                                        color: Colors.grey.withOpacity(0.3)),
                                   ))
                               .toList(),
                         ),
@@ -151,7 +162,9 @@ Future<void> showResumoNotificacaoModal(
                     icon: Icons.notes_outlined,
                     children: [
                       SelectableText(
-                        observacoes.trim().isEmpty ? "Sem observações." : observacoes,
+                        observacoes.trim().isEmpty
+                            ? "Sem observações."
+                            : observacoes,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.black.withOpacity(0.85),
@@ -170,7 +183,8 @@ Future<void> showResumoNotificacaoModal(
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: corClasse,
                               borderRadius: BorderRadius.circular(12),
@@ -188,7 +202,8 @@ Future<void> showResumoNotificacaoModal(
                           Expanded(
                             child: Text(
                               "Classificação calculada com base nos campos selecionados.",
-                              style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                              style: TextStyle(
+                                  color: Colors.black.withOpacity(0.6)),
                             ),
                           ),
                         ],
@@ -203,7 +218,8 @@ Future<void> showResumoNotificacaoModal(
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () {
-                            Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                            Navigator.of(context, rootNavigator: true)
+                                .pushNamedAndRemoveUntil(
                               '/home',
                               (Route<dynamic> route) => false,
                             );
@@ -229,6 +245,113 @@ Future<void> showResumoNotificacaoModal(
                     ],
                   ),
 
+                  const SizedBox(height: 12),
+
+                  // NOVO BOTÃO DE ENVIAR POR E-MAIL (VIA EMAILJS)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                    onPressed: () async {
+                      final TextEditingController emailController =
+                          TextEditingController();
+
+                      final destino = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text("Enviar resumo por e-mail"),
+                          content: TextField(
+                            controller: emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: "E-mail do destinatário",
+                              hintText: "exemplo@dominio.com",
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text("Cancelar"),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(
+                                  ctx, emailController.text.trim()),
+                              child: const Text("Enviar"),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (destino == null || destino.isEmpty) return;
+
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        final remetente =
+                            user?.email ?? "desconhecido@classimed.com";
+
+                        final serviceId = "SEU_SERVICE_ID";
+                        final templateId = "SEU_TEMPLATE_ID";
+                        final publicKey = "SEU_PUBLIC_KEY";
+
+                        final conteudo = '''
+Resumo da Ocorrência:
+
+🧾 Nome: ${dados["nome"]}
+🏥 Tipo: ${dados["tipoIncidente"]}
+📍 Local: ${dados["localIncidente"]}
+🕒 Turno: ${dados["turno"]}
+⚖️ Classificação: $classificacao
+💯 Pontuação: $pontuacao
+📅 Data/Hora: ${dados["dataHora"]}
+🗒️ Observações: ${dados["observacoes"] ?? "-"}
+
+Enviado automaticamente pelo sistema ClassiMed.
+''';
+
+                        final url =
+                            Uri.parse("https://api.emailjs.com/api/v1.0/email/send");
+                        final response = await http.post(
+                          url,
+                          headers: {
+                            "origin": "http://localhost",
+                            "Content-Type": "application/json",
+                          },
+                          body: json.encode({
+                            "service_id": serviceId,
+                            "template_id": templateId,
+                            "user_id": publicKey,
+                            "template_params": {
+                              "to_email": destino,
+                              "from_email": remetente,
+                              "message": conteudo,
+                              "subject":
+                                  "Resumo da Ocorrência — ${dados["nome"] ?? "Sem nome"}",
+                            },
+                          }),
+                        );
+
+                        if (response.statusCode == 200) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text("Resumo enviado com sucesso!")),
+                          );
+                        } else {
+                          throw Exception(
+                              "Erro ${response.statusCode}: ${response.body}");
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Erro ao enviar e-mail: $e")),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.email_outlined),
+                    label: const Text("Enviar por e-mail"),
+                  ),
+
                   SizedBox(height: MediaQuery.of(context).padding.bottom),
                 ],
               ),
@@ -239,6 +362,8 @@ Future<void> showResumoNotificacaoModal(
     },
   );
 }
+
+// ----------------- Helpers -----------------
 
 Widget _grupoCard({
   required String titulo,
