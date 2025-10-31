@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 
-// IMPORTA a modal nova (arquivo separado)
 import 'resumo_notificacao_modal.dart';
 
-/// =====================
-/// [NOVO] ENGINE DE PONTUAÇÃO / CLASSIFICAÇÃO
-/// =====================
 class RiskConfig {
   final Map<String, int> tipo;
   final Map<String, int> local;
   final Map<String, int> turno;
   final Map<String, int> sintomas;
-
-  // multiplicadores contextuais (suaves)
   final Map<String, double> localMult;
   final Map<String, double> turnoMult;
-
-  // cap e thresholds
   final int capSintomas;
-  final Map<String, int> thresholds; // {"Leve":2, "Médio":5, "Grave":9, "Óbito":1000}
+  final Map<String, int> thresholds;
 
   const RiskConfig({
     required this.tipo,
@@ -49,8 +43,8 @@ class ScoreContext {
 }
 
 class ScoredResult {
-  final int raw;        // pontuação “bruta”
-  final double scaled;  // normalizado (0..10)
+  final int raw;
+  final double scaled;
   final String classe;
 
   const ScoredResult(this.raw, this.scaled, this.classe);
@@ -62,10 +56,9 @@ class RiskScorer {
 
   List<String> _sanitizeSymptoms(List<String> s) {
     final set = s.toSet();
-    // Curto-circuito: críticos absolutos
     if (set.contains("Óbito")) return const ["Óbito"];
     if (set.contains("Parada cardiorrespiratória")) {
-      set.remove("Near miss"); // evitar combinações incoerentes
+      set.remove("Near miss");
     }
     return set.toList();
   }
@@ -73,8 +66,6 @@ class RiskScorer {
   int _synergyBonus(ScoreContext c) {
     int bonus = 0;
     final s = c.sintomas.toSet();
-
-    // Exemplos de sinergia (ajuste conforme clínica)
     if (c.tipoIncidente == "Queda" && s.contains("Fratura")) bonus += 2;
     if (c.tipoIncidente == "Erro de Medicação" &&
         s.contains("Reação alérgica controlada")) bonus += 2;
@@ -103,19 +94,15 @@ class RiskScorer {
       sintomas: sanitized,
     );
 
-    // Curto-circuito crítico
     if (ctx.sintomas.contains("Óbito")) {
       return ScoredResult(1000, 10.0, "Óbito");
     }
 
     int total = 0;
-
-    // Pesos base
     total += cfg.tipo[ctx.tipoIncidente] ?? 0;
     total += cfg.local[ctx.localIncidente] ?? 0;
     total += cfg.turno[ctx.turno] ?? 0;
 
-    // Sintomas com cap
     int sintSum = 0;
     for (final s in ctx.sintomas) {
       sintSum += cfg.sintomas[s] ?? 0;
@@ -123,10 +110,8 @@ class RiskScorer {
     sintSum = sintSum.clamp(0, cfg.capSintomas);
     total += sintSum;
 
-    // Sinergias
     total += _synergyBonus(ctx);
 
-    // Multiplicadores contextuais
     double mult = 1.0;
     if (ctx.localIncidente != null) {
       mult *= (cfg.localMult[ctx.localIncidente] ?? 1.0);
@@ -136,20 +121,14 @@ class RiskScorer {
     }
     total = (total * mult).round();
 
-    // Normalização simples 0..10 (ajuste o divisor conforme necessidade)
     final scaled = (total >= 1000) ? 10.0 : (total / 10.0).clamp(0.0, 10.0);
-
     final classe = _classify(total);
     return ScoredResult(total, scaled, classe);
   }
 }
 
-/// =====================
-/// FIM DO ENGINE NOVO
-/// =====================
-
 class NovaNotificacaoPage extends StatefulWidget {
-  final Map<String, dynamic>? notificacao; // <- pode vir preenchida (edição)
+  final Map<String, dynamic>? notificacao;
 
   const NovaNotificacaoPage({super.key, this.notificacao});
 
@@ -159,13 +138,13 @@ class NovaNotificacaoPage extends StatefulWidget {
 
 class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _obsController = TextEditingController();
 
   String? tipoIncidente;
   String? localIncidente;
   String? turno;
   List<String> sintomas = [];
 
-  // [NOVO] scorer configurável
   late RiskScorer scorer;
 
   @override
@@ -175,13 +154,13 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     if (widget.notificacao != null) {
       final n = widget.notificacao!;
       _nomeController.text = n["nome"] ?? "";
+      _obsController.text = n["observacoes"] ?? "";
       tipoIncidente = n["tipoIncidente"];
       localIncidente = n["localIncidente"];
       turno = n["turno"];
       sintomas = List<String>.from(n["sintomas"] ?? []);
     }
 
-    // [NOVO] instanciar scorer com sua configuração
     scorer = RiskScorer(RiskConfig(
       tipo: tipoIncidentePontuacao,
       local: localIncidentePontuacao,
@@ -205,7 +184,13 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     ));
   }
 
-  // === MAPAS DE PONTUAÇÃO (seus originais) ===
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _obsController.dispose();
+    super.dispose();
+  }
+
   final Map<String, int> tipoIncidentePontuacao = {
     "Queda": 2,
     "Erro de Medicação": 3,
@@ -260,13 +245,13 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     "Óbito": 1000,
   };
 
-  // === SALVAR RASCUNHO (inalterado) ===
   Future<void> _salvarRascunho() async {
     final prefs = await SharedPreferences.getInstance();
     final rascunhos = prefs.getStringList("draft_notifications") ?? [];
 
     final notificacao = {
       "nome": _nomeController.text,
+      "observacoes": _obsController.text,
       "tipoIncidente": tipoIncidente,
       "localIncidente": localIncidente,
       "turno": turno,
@@ -290,7 +275,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     }
   }
 
-  // [NOVO] helper: sempre calcula o score atual do formulário
   ScoredResult _scoreAtual() {
     final ctx = ScoreContext(
       tipoIncidente: tipoIncidente,
@@ -301,9 +285,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     return scorer.score(ctx);
   }
 
-  // === ENVIAR NOTIFICAÇÃO ===
   Future<void> _enviarNotificacao() async {
-    // (Opcional) Validação básica
     final faltando = <String>[];
     if (_nomeController.text.trim().isEmpty) faltando.add("Nome");
     if (tipoIncidente == null) faltando.add("Tipo de Incidente");
@@ -315,16 +297,32 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       return;
     }
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Faça login para enviar a notificação.")),
+        );
+      }
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final notificacoes = prefs.getStringList("final_notifications") ?? [];
 
-    // [TROCAR] => em vez de _classificarNotificacao/_pontuacaoAtual
     final scored = _scoreAtual();
     final resultadoClassificacao = scored.classe;
     final pontuacao = scored.raw;
 
+    final createdBy = {
+      "uid": user.uid,
+      "email": user.email,
+      "name": user.displayName,
+    };
+
     final notificacao = {
       "nome": _nomeController.text,
+      "observacoes": _obsController.text,
       "tipoIncidente": tipoIncidente,
       "localIncidente": localIncidente,
       "turno": turno,
@@ -332,14 +330,43 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       "resultado": resultadoClassificacao,
       "pontuacao": pontuacao,
       "dataHora": DateTime.now().toIso8601String(),
+      "createdByUid": user.uid,
+      "createdByEmail": user.email,
+      "createdByName": user.displayName,
+      "createdBy": createdBy,
     };
 
     notificacoes.add(jsonEncode(notificacao));
     await prefs.setStringList("final_notifications", notificacoes);
 
+    try {
+      print('Tentando gravar no Firebase');
+      final docRef = await FirebaseFirestore.instance
+          .collection('notificacoes')
+          .add({
+        ...notificacao,
+        "createdAt": FieldValue.serverTimestamp(),
+        "updatedAt": FieldValue.serverTimestamp(),
+      });
+      print('Gravou no banco');
+
+      notificacao["id"] = docRef.id;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Notificação registrada no Firebase.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Falha ao salvar no Firebase: $e")),
+        );
+      }
+    }
+
     if (!mounted) return;
 
-    // ➜ Abre a NOVA MODAL (arquivo separado) com o resumo detalhado
     await showResumoNotificacaoModal(
       context,
       dados: notificacao,
@@ -347,10 +374,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
       classificacao: resultadoClassificacao,
     );
   }
-
-  // [REMOVIDO] _classificarNotificacao()
-  // [REMOVIDO] _pontuacaoAtual
-  // [REMOVIDO] _riskProgress()
 
   Color _badgeColor(String classe) {
     switch (classe) {
@@ -368,8 +391,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
         return Colors.blueGrey;
     }
   }
-
-  // === UI HELPERS ===
 
   Widget _sectionCard({
     required IconData icon,
@@ -480,12 +501,11 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   }
 
   Widget _classificacaoPreview() {
-    // [TROCAR] usa o scorer em tempo real
     final scored = _scoreAtual();
     final classe = scored.classe;
     final color = _badgeColor(classe);
     final p = scored.raw;
-    final progress = (scored.scaled / 10.0).clamp(0.0, 1.0); // 0..1
+    final progress = (scored.scaled / 10.0).clamp(0.0, 1.0);
 
     return Card(
       elevation: 3,
@@ -545,7 +565,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     );
   }
 
-  // === BUILD ===
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -579,7 +598,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                 ),
               ),
             ),
-
             _sectionCard(
               icon: Icons.report_problem_outlined,
               title: "Tipo de Incidente",
@@ -589,7 +607,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                 onSelect: (v) => tipoIncidente = v,
               ),
             ),
-
             _sectionCard(
               icon: Icons.place_outlined,
               title: "Local do Incidente",
@@ -599,7 +616,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                 onSelect: (v) => localIncidente = v,
               ),
             ),
-
             _sectionCard(
               icon: Icons.schedule_outlined,
               title: "Turno",
@@ -609,7 +625,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                 onSelect: (v) => turno = v,
               ),
             ),
-
             _sectionCard(
               icon: Icons.healing_outlined,
               title: "Sintomas",
@@ -645,13 +660,29 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                 ],
               ),
             ),
-
+            _sectionCard(
+              icon: Icons.notes_outlined,
+              title: "Observações adicionais",
+              subtitle: "Descreva detalhes relevantes que não se encaixam nos campos acima.",
+              child: TextField(
+                controller: _obsController,
+                maxLines: 6,
+                minLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: "Ex.: dinâmica do evento, medidas adotadas, equipes envolvidas...",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+            ),
             _classificacaoPreview(),
           ],
         ),
       ),
-
-      // Barra fixa de ações
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),

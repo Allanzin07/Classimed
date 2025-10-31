@@ -1,14 +1,6 @@
 // lib/resumo_notificacao_modal.dart
 import 'package:flutter/material.dart';
 
-/// Abre a modal com o resumo detalhado da ocorrência.
-/// Exemplo de uso (na sua NovaNotificacaoPage, após salvar):
-/// await showResumoNotificacaoModal(
-///   context,
-///   dados: notificacao,           // Map<String, dynamic>
-///   pontuacao: pontuacao,         // int
-///   classificacao: classificacao, // String (ex.: "Leve", "Médio", "Grave", "Óbito")
-/// );
 Future<void> showResumoNotificacaoModal(
   BuildContext context, {
   required Map<String, dynamic> dados,
@@ -28,19 +20,19 @@ Future<void> showResumoNotificacaoModal(
     builder: (ctx) {
       return DraggableScrollableSheet(
         expand: false,
-        // Abre mais alta e permite quase fullscreen
         initialChildSize: 0.92,
         minChildSize: 0.6,
         maxChildSize: 0.98,
         builder: (context, scrollController) {
-          final nome     = (dados["nome"] ?? "") as String;
-          final tipo     = (dados["tipoIncidente"] ?? "-") as String;
-          final local    = (dados["localIncidente"] ?? "-") as String;
-          final turno    = (dados["turno"] ?? "-") as String;
-          final sintomas = (dados["sintomas"] as List?)?.cast<String>() ?? const <String>[];
-          final dataHora = _fmtData(dados["dataHora"] as String?);
+          final nome         = (dados["nome"] ?? "") as String;
+          final tipo         = (dados["tipoIncidente"] ?? "-") as String;
+          final local        = (dados["localIncidente"] ?? "-") as String;
+          final turno        = (dados["turno"] ?? "-") as String;
+          final sintomas     = (dados["sintomas"] as List?)?.cast<String>() ?? const <String>[];
+          final dataHora     = _fmtData(dados["dataHora"] as String?);
+          final observacoes  = (dados["observacoes"] ?? "") as String;
 
-          final bottomInset = MediaQuery.of(context).viewInsets.bottom; // teclado
+          final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
           return Padding(
             padding: EdgeInsets.only(top: 8, bottom: bottomInset > 0 ? bottomInset : 0),
@@ -50,7 +42,6 @@ Future<void> showResumoNotificacaoModal(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Handle (barrinha) + respiro
                   Center(
                     child: Container(
                       width: 40,
@@ -63,7 +54,6 @@ Future<void> showResumoNotificacaoModal(
                     ),
                   ),
 
-                  // Cabeçalho
                   Row(
                     children: [
                       const Icon(Icons.fact_check_outlined, size: 22),
@@ -90,7 +80,6 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
-                  // Barra de risco / pontuação
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
@@ -108,7 +97,6 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 18),
 
-                  // Identificação
                   _grupoCard(
                     titulo: "Identificação",
                     icon: Icons.badge_outlined,
@@ -120,7 +108,6 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
-                  // Incidente
                   _grupoCard(
                     titulo: "Incidente",
                     icon: Icons.local_hospital_outlined,
@@ -133,7 +120,6 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
-                  // Sintomas
                   _grupoCard(
                     titulo: "Sintomas Selecionados",
                     icon: Icons.healing_outlined,
@@ -158,17 +144,32 @@ Future<void> showResumoNotificacaoModal(
                     ],
                   ),
 
+                  const SizedBox(height: 12),
+
+                  _grupoCard(
+                    titulo: "Observações",
+                    icon: Icons.notes_outlined,
+                    children: [
+                      SelectableText(
+                        observacoes.trim().isEmpty ? "Sem observações." : observacoes,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black.withOpacity(0.85),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 16),
 
-                  // Grau da ocorrência
                   _grupoCard(
                     titulo: "Grau da Ocorrência",
                     icon: Icons.verified_outlined,
                     children: [
                       Row(
                         children: [
-                          Container
-                          (
+                          Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: corClasse,
@@ -197,12 +198,16 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 20),
 
-                  // Ações
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () {
+                            Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+                              '/home',
+                              (Route<dynamic> route) => false,
+                            );
+                          },
                           icon: const Icon(Icons.check),
                           label: const Text("Concluir"),
                         ),
@@ -224,7 +229,6 @@ Future<void> showResumoNotificacaoModal(
                     ],
                   ),
 
-                  // Respeita o SafeArea inferior quando não há teclado
                   SizedBox(height: MediaQuery.of(context).padding.bottom),
                 ],
               ),
@@ -235,8 +239,6 @@ Future<void> showResumoNotificacaoModal(
     },
   );
 }
-
-/// -------------------- helpers visuais/formatacao --------------------
 
 Widget _grupoCard({
   required String titulo,
