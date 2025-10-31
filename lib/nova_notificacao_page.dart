@@ -340,7 +340,6 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     await prefs.setStringList("final_notifications", notificacoes);
 
     try {
-      print('Tentando gravar no Firebase');
       final docRef = await FirebaseFirestore.instance
           .collection('notificacoes')
           .add({
@@ -348,8 +347,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
       });
-      print('Gravou no banco');
-
+      
       notificacao["id"] = docRef.id;
 
       if (mounted) {
