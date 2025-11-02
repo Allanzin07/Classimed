@@ -1,4 +1,3 @@
-// lib/resumo_notificacao_modal.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -247,7 +246,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
-                  // NOVO BOTÃO DE ENVIAR POR E-MAIL (VIA EMAILJS)
+                  // ENVIAR POR E-MAIL (EmailJS)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepPurple,
@@ -291,52 +290,74 @@ Future<void> showResumoNotificacaoModal(
                         final remetente =
                             user?.email ?? "desconhecido@classimed.com";
 
-                        final serviceId = "SEU_SERVICE_ID";
-                        final templateId = "SEU_TEMPLATE_ID";
-                        final publicKey = "SEU_PUBLIC_KEY";
+                        // === PREENCHA com seus valores do EmailJS ===
+                        final serviceId = "service_66b1ch8";
+                        final templateId = "template_enm0yc8";
+                        final publicKey = "ZBFwHxZkRa_YysVgU";
+                        // ===========================================
 
+                        // Texto opcional (se seu template ainda tiver {{message}})
                         final conteudo = '''
-Resumo da Ocorrência:
+Resumo da Ocorrência
 
-🧾 Nome: ${dados["nome"]}
-🏥 Tipo: ${dados["tipoIncidente"]}
-📍 Local: ${dados["localIncidente"]}
-🕒 Turno: ${dados["turno"]}
-⚖️ Classificação: $classificacao
-💯 Pontuação: $pontuacao
-📅 Data/Hora: ${dados["dataHora"]}
-🗒️ Observações: ${dados["observacoes"] ?? "-"}
-
-Enviado automaticamente pelo sistema ClassiMed.
+Nome: ${dados["nome"]}
+Tipo: ${dados["tipoIncidente"]}
+Local: ${dados["localIncidente"]}
+Turno: ${dados["turno"]}
+Classificação: $classificacao
+Pontuação: $pontuacao
+Data/Hora: ${dados["dataHora"]}
+Observações: ${dados["observacoes"] ?? "-"}
 ''';
 
-                        final url =
-                            Uri.parse("https://api.emailjs.com/api/v1.0/email/send");
+                        // Variáveis do template HTML
+                        final badgeColor = _badgeHex(classificacao);
+                        final riskPercent = _riskPercent(pontuacao);
+
+                        final params = {
+                          "to_email": destino,
+                          "from_email": remetente,
+
+                          "subject":
+                              "Resumo da Ocorrência — ${dados["nome"] ?? "Sem nome"}",
+
+                          "name": dados["nome"] ?? "-",
+                          "tipo": dados["tipoIncidente"] ?? "-",
+                          "local": dados["localIncidente"] ?? "-",
+                          "turno": dados["turno"] ?? "-",
+                          "classificacao": classificacao,
+                          "pontuacao": "$pontuacao",
+                          "dataHora": (dados["dataHora"] ?? "-").toString(),
+                          "observacoes": (dados["observacoes"] ?? "-").toString(),
+
+                          "badge_color": badgeColor,
+                          "risk_percent": riskPercent,
+
+                          "message": conteudo, // se ainda usar {{message}}
+                        };
+
+                        final url = Uri.parse(
+                          "https://api.emailjs.com/api/v1.0/email/send",
+                        );
+
                         final response = await http.post(
                           url,
-                          headers: {
-                            "origin": "http://localhost",
+                          headers: const {
+                            "origin": "http://localhost", // PRODUÇÃO: troque pela origem real
                             "Content-Type": "application/json",
                           },
                           body: json.encode({
-                            "service_id": serviceId,
-                            "template_id": templateId,
-                            "user_id": publicKey,
-                            "template_params": {
-                              "to_email": destino,
-                              "from_email": remetente,
-                              "message": conteudo,
-                              "subject":
-                                  "Resumo da Ocorrência — ${dados["nome"] ?? "Sem nome"}",
-                            },
+                            "service_id": serviceId.trim(),
+                            "template_id": templateId.trim(),
+                            "user_id": publicKey.trim(),
+                            "template_params": params,
                           }),
                         );
 
                         if (response.statusCode == 200) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content:
-                                    Text("Resumo enviado com sucesso!")),
+                                content: Text("Resumo enviado com sucesso!")),
                           );
                         } else {
                           throw Exception(
@@ -450,6 +471,23 @@ double _riskProgress(int p) {
   if (p >= 1000) return 1.0;
   final capped = p.clamp(0, 10);
   return capped / 10.0;
+}
+
+String _badgeHex(String classe) {
+  switch (classe) {
+    case 'Grave':    return '#dc2626';
+    case 'Médio':    return '#f59e0b';
+    case 'Leve':     return '#16a34a';
+    case 'Sem dano': return '#6b7280';
+    case 'Óbito':    return '#111827';
+    default:         return '#4f46e5';
+  }
+}
+
+String _riskPercent(int p) {
+  final capped = p.clamp(0, 10);
+  final percent = (capped / 10.0 * 100).round();
+  return '$percent'; // "0".."100"
 }
 
 Color _badgeColor(String classe) {
