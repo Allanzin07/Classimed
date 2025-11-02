@@ -79,8 +79,7 @@ Future<void> showResumoNotificacaoModal(
                         child: Text(
                           classificacao,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700),
+                              color: Colors.white, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -235,7 +234,11 @@ Future<void> showResumoNotificacaoModal(
                             foregroundColor: Colors.white,
                           ),
                           onPressed: () {
-                            Navigator.pop(context);
+                            Navigator.of(context, rootNavigator: true)
+                                .pushNamedAndRemoveUntil(
+                              '/home',
+                              (Route<dynamic> route) => false,
+                            );
                           },
                           icon: const Icon(Icons.home_outlined),
                           label: const Text("Voltar"),
@@ -328,7 +331,8 @@ Observações: ${dados["observacoes"] ?? "-"}
                           "classificacao": classificacao,
                           "pontuacao": "$pontuacao",
                           "dataHora": (dados["dataHora"] ?? "-").toString(),
-                          "observacoes": (dados["observacoes"] ?? "-").toString(),
+                          "observacoes":
+                              (dados["observacoes"] ?? "-").toString(),
 
                           "badge_color": badgeColor,
                           "risk_percent": riskPercent,
@@ -343,7 +347,8 @@ Observações: ${dados["observacoes"] ?? "-"}
                         final response = await http.post(
                           url,
                           headers: const {
-                            "origin": "http://localhost", // PRODUÇÃO: troque pela origem real
+                            "origin":
+                                "http://localhost", // PRODUÇÃO: troque pela origem real
                             "Content-Type": "application/json",
                           },
                           body: json.encode({
@@ -475,12 +480,18 @@ double _riskProgress(int p) {
 
 String _badgeHex(String classe) {
   switch (classe) {
-    case 'Grave':    return '#dc2626';
-    case 'Médio':    return '#f59e0b';
-    case 'Leve':     return '#16a34a';
-    case 'Sem dano': return '#6b7280';
-    case 'Óbito':    return '#111827';
-    default:         return '#4f46e5';
+    case 'Grave':
+      return '#dc2626';
+    case 'Médio':
+      return '#f59e0b';
+    case 'Leve':
+      return '#16a34a';
+    case 'Sem dano':
+      return '#6b7280';
+    case 'Óbito':
+      return '#111827';
+    default:
+      return '#4f46e5';
   }
 }
 
