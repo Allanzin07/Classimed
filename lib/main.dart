@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'firebase_options.dart';
 
 // Import das suas pages
@@ -8,10 +10,13 @@ import 'login_page.dart';
 import 'home_page.dart';
 import 'register_page.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa o Firebase antes de rodar o app
+  // 🔹 Carrega as variáveis do arquivo .env
+  await dotenv.load();
+
+  // 🔹 Inicializa o Firebase antes de rodar o app
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -36,23 +41,13 @@ class ClassiMedApp extends StatelessWidget {
           ),
         ),
       ),
-
-      // Tela inicial (Splash verifica login depois)
       initialRoute: '/',
-
-      // Rotas nomeadas do app
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/home': (context) => const HomePage(),
       },
-
-      // 🔹 Controle automático de rota inicial com base no login
-      // (Opcional: se quiser pular a splash)
-      // home: FirebaseAuth.instance.currentUser == null
-      //     ? const LoginPage()
-      //     : const HomePage(),
     );
   }
 }
