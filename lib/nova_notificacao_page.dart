@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:convert';
 
 import 'resumo_notificacao_modal.dart';
 
@@ -46,7 +44,6 @@ class ScoredResult {
   final int raw;
   final double scaled;
   final String classe;
-
   const ScoredResult(this.raw, this.scaled, this.classe);
 }
 
@@ -57,9 +54,7 @@ class RiskScorer {
   List<String> _sanitizeSymptoms(List<String> s) {
     final set = s.toSet();
     if (set.contains("Óbito")) return const ["Óbito"];
-    if (set.contains("Parada cardiorrespiratória")) {
-      set.remove("Near miss");
-    }
+    if (set.contains("Parada cardiorrespiratória")) set.remove("Near miss");
     return set.toList();
   }
 
@@ -78,25 +73,21 @@ class RiskScorer {
 
   String _classify(int p) {
     if (p >= (cfg.thresholds["Óbito"] ?? 1000)) return "Óbito";
-    if (p >= (cfg.thresholds["Grave"] ?? 9))   return "Grave";
-    if (p >= (cfg.thresholds["Médio"] ?? 5))   return "Médio";
-    if (p >= (cfg.thresholds["Leve"] ?? 2))    return "Leve";
+    if (p >= (cfg.thresholds["Grave"] ?? 9)) return "Grave";
+    if (p >= (cfg.thresholds["Médio"] ?? 5)) return "Médio";
+    if (p >= (cfg.thresholds["Leve"] ?? 2)) return "Leve";
     return "Sem dano";
   }
 
   ScoredResult score(ScoreContext ctx0) {
-    final sanitized = _sanitizeSymptoms(ctx0.sintomas);
-
     final ctx = ScoreContext(
       tipoIncidente: ctx0.tipoIncidente,
       localIncidente: ctx0.localIncidente,
       turno: ctx0.turno,
-      sintomas: sanitized,
+      sintomas: _sanitizeSymptoms(ctx0.sintomas),
     );
 
-    if (ctx.sintomas.contains("Óbito")) {
-      return ScoredResult(1000, 10.0, "Óbito");
-    }
+    if (ctx.sintomas.contains("Óbito")) return const ScoredResult(1000, 10.0, "Óbito");
 
     int total = 0;
     total += cfg.tipo[ctx.tipoIncidente] ?? 0;
@@ -113,12 +104,8 @@ class RiskScorer {
     total += _synergyBonus(ctx);
 
     double mult = 1.0;
-    if (ctx.localIncidente != null) {
-      mult *= (cfg.localMult[ctx.localIncidente] ?? 1.0);
-    }
-    if (ctx.turno != null) {
-      mult *= (cfg.turnoMult[ctx.turno] ?? 1.0);
-    }
+    if (ctx.localIncidente != null) mult *= (cfg.localMult[ctx.localIncidente] ?? 1.0);
+    if (ctx.turno != null)          mult *= (cfg.turnoMult[ctx.turno] ?? 1.0);
     total = (total * mult).round();
 
     final scaled = (total >= 1000) ? 10.0 : (total / 10.0).clamp(0.0, 10.0);
@@ -128,8 +115,8 @@ class RiskScorer {
 }
 
 class NovaNotificacaoPage extends StatefulWidget {
+  /// Se vier com `id`, edita o documento correspondente.
   final Map<String, dynamic>? notificacao;
-
   const NovaNotificacaoPage({super.key, this.notificacao});
 
   @override
@@ -138,7 +125,7 @@ class NovaNotificacaoPage extends StatefulWidget {
 
 class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _obsController = TextEditingController();
+  final TextEditingController _obsController  = TextEditingController();
 
   String? tipoIncidente;
   String? localIncidente;
@@ -147,50 +134,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
 
   late RiskScorer scorer;
 
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.notificacao != null) {
-      final n = widget.notificacao!;
-      _nomeController.text = n["nome"] ?? "";
-      _obsController.text = n["observacoes"] ?? "";
-      tipoIncidente = n["tipoIncidente"];
-      localIncidente = n["localIncidente"];
-      turno = n["turno"];
-      sintomas = List<String>.from(n["sintomas"] ?? []);
-    }
-
-    scorer = RiskScorer(RiskConfig(
-      tipo: tipoIncidentePontuacao,
-      local: localIncidentePontuacao,
-      turno: turnoPontuacao,
-      sintomas: sintomasPontuacao,
-      localMult: {
-        "UTI": 1.2,
-        "Centro Cirúrgico": 1.2,
-      },
-      turnoMult: {
-        "Madrugada (01h-07h)": 1.1,
-      },
-      capSintomas: 6,
-      thresholds: const {
-        "Sem dano": 0,
-        "Leve": 2,
-        "Médio": 5,
-        "Grave": 9,
-        "Óbito": 1000,
-      },
-    ));
-  }
-
-  @override
-  void dispose() {
-    _nomeController.dispose();
-    _obsController.dispose();
-    super.dispose();
-  }
-
+  // ---------- Pontuações ----------
   final Map<String, int> tipoIncidentePontuacao = {
     "Queda": 2,
     "Erro de Medicação": 3,
@@ -245,151 +189,62 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     "Óbito": 1000,
   };
 
-  Future<void> _salvarRascunho() async {
-    final prefs = await SharedPreferences.getInstance();
-    final rascunhos = prefs.getStringList("draft_notifications") ?? [];
-
-    final notificacao = {
-      "nome": _nomeController.text,
-      "observacoes": _obsController.text,
-      "tipoIncidente": tipoIncidente,
-      "localIncidente": localIncidente,
-      "turno": turno,
-      "sintomas": sintomas,
-    };
+  @override
+  void initState() {
+    super.initState();
 
     if (widget.notificacao != null) {
-      rascunhos.removeWhere((e) {
-        final data = jsonDecode(e) as Map<String, dynamic>;
-        return data["nome"] == widget.notificacao!["nome"];
-      });
+      final n = widget.notificacao!;
+      _nomeController.text = (n["nome"] ?? "").toString();
+      _obsController.text  = (n["observacoes"] ?? "").toString();
+      tipoIncidente  = n["tipoIncidente"] as String?;
+      localIncidente = n["localIncidente"] as String?;
+      turno          = n["turno"] as String?;
+      final s = n["sintomas"];
+      if (s is List) sintomas = List<String>.from(s.map((e) => e.toString()));
     }
 
-    rascunhos.add(jsonEncode(notificacao));
-    await prefs.setStringList("draft_notifications", rascunhos);
+    scorer = RiskScorer(RiskConfig(
+      tipo: tipoIncidentePontuacao,
+      local: localIncidentePontuacao,
+      turno: turnoPontuacao,
+      sintomas: sintomasPontuacao,
+      localMult: const {"UTI": 1.2, "Centro Cirúrgico": 1.2},
+      turnoMult: const {"Madrugada (01h-07h)": 1.1},
+      capSintomas: 6,
+      thresholds: const {"Sem dano": 0, "Leve": 2, "Médio": 5, "Grave": 9, "Óbito": 1000},
+    ));
+  }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Rascunho salvo com sucesso!")),
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _obsController.dispose();
+    super.dispose();
+  }
+
+  // ---------- Helpers ----------
+  ScoredResult _scoreAtual() => RiskScorer(scorer.cfg).score(
+        ScoreContext(
+          tipoIncidente: tipoIncidente,
+          localIncidente: localIncidente,
+          turno: turno,
+          sintomas: sintomas,
+        ),
       );
-    }
-  }
-
-  ScoredResult _scoreAtual() {
-    final ctx = ScoreContext(
-      tipoIncidente: tipoIncidente,
-      localIncidente: localIncidente,
-      turno: turno,
-      sintomas: sintomas,
-    );
-    return scorer.score(ctx);
-  }
-
-  Future<void> _enviarNotificacao() async {
-    final faltando = <String>[];
-    if (_nomeController.text.trim().isEmpty) faltando.add("Nome");
-    if (tipoIncidente == null) faltando.add("Tipo de Incidente");
-    if (localIncidente == null) faltando.add("Local do Incidente");
-    if (turno == null) faltando.add("Turno");
-    if (faltando.isNotEmpty) {
-      final msg = "Preencha: ${faltando.join(", ")}";
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      return;
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Faça login para enviar a notificação.")),
-        );
-      }
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final notificacoes = prefs.getStringList("final_notifications") ?? [];
-
-    final scored = _scoreAtual();
-    final resultadoClassificacao = scored.classe;
-    final pontuacao = scored.raw;
-
-    final createdBy = {
-      "uid": user.uid,
-      "email": user.email,
-      "name": user.displayName,
-    };
-
-    final notificacao = {
-      "nome": _nomeController.text,
-      "observacoes": _obsController.text,
-      "tipoIncidente": tipoIncidente,
-      "localIncidente": localIncidente,
-      "turno": turno,
-      "sintomas": sintomas,
-      "resultado": resultadoClassificacao,
-      "pontuacao": pontuacao,
-      "dataHora": DateTime.now().toIso8601String(),
-      "createdByUid": user.uid,
-      "createdByEmail": user.email,
-      "createdByName": user.displayName,
-      "createdBy": createdBy,
-    };
-
-    notificacoes.add(jsonEncode(notificacao));
-    await prefs.setStringList("final_notifications", notificacoes);
-
-    try {
-      final docRef = await FirebaseFirestore.instance
-          .collection('notificacoes')
-          .add({
-        ...notificacao,
-        "createdAt": FieldValue.serverTimestamp(),
-        "updatedAt": FieldValue.serverTimestamp(),
-      });
-      
-      notificacao["id"] = docRef.id;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Notificação registrada no Firebase.")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Falha ao salvar no Firebase: $e")),
-        );
-      }
-    }
-
-    if (!mounted) return;
-
-    await showResumoNotificacaoModal(
-      context,
-      dados: notificacao,
-      pontuacao: pontuacao,
-      classificacao: resultadoClassificacao,
-    );
-  }
 
   Color _badgeColor(String classe) {
     switch (classe) {
-      case "Sem dano":
-        return Colors.grey.shade600;
-      case "Leve":
-        return Colors.green.shade600;
-      case "Médio":
-        return Colors.orange.shade700;
-      case "Grave":
-        return Colors.red.shade600;
-      case "Óbito":
-        return Colors.black87;
-      default:
-        return Colors.blueGrey;
+      case "Sem dano": return Colors.grey.shade600;
+      case "Leve":     return Colors.green.shade600;
+      case "Médio":    return Colors.orange.shade700;
+      case "Grave":    return Colors.red.shade600;
+      case "Óbito":    return Colors.black87;
+      default:         return Colors.blueGrey;
     }
   }
 
+  // ---------- UI helpers ----------
   Widget _sectionCard({
     required IconData icon,
     required String title,
@@ -414,17 +269,12 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(title,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ]),
             if (subtitle != null) ...[
               const SizedBox(height: 6),
-              Text(
-                subtitle,
-                style: TextStyle(
-                    fontSize: 13, color: Colors.black.withOpacity(0.6)),
-              ),
+              Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.black.withOpacity(0.6))),
             ],
             const SizedBox(height: 12),
             child,
@@ -440,25 +290,17 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     required void Function(String) onSelect,
   }) {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 8, runSpacing: 8,
       children: options.map((op) {
         final isSelected = selected == op;
         return ChoiceChip(
           label: Text(op),
           selected: isSelected,
           onSelected: (_) => setState(() => onSelect(op)),
-          shape: StadiumBorder(
-            side: BorderSide(
-              color: isSelected
-                  ? Colors.lightBlueAccent
-                  : Colors.grey.withOpacity(0.3),
-            ),
-          ),
+          shape: StadiumBorder(side: BorderSide(color: isSelected ? Colors.lightBlueAccent : Colors.grey.withOpacity(0.3))),
           selectedColor: Colors.lightBlueAccent,
           backgroundColor: Colors.grey[100],
-          labelStyle:
-              TextStyle(color: isSelected ? Colors.white : Colors.black87),
+          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
           elevation: isSelected ? 2 : 0,
           pressElevation: 2,
         );
@@ -472,25 +314,17 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
     required void Function(String, bool) onToggle,
   }) {
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 8, runSpacing: 8,
       children: options.map((op) {
         final isSelected = current.contains(op);
         return FilterChip(
           label: Text(op),
           selected: isSelected,
           onSelected: (value) => setState(() => onToggle(op, value)),
-          shape: StadiumBorder(
-            side: BorderSide(
-              color: isSelected
-                  ? Colors.lightBlueAccent
-                  : Colors.grey.withOpacity(0.3),
-            ),
-          ),
+          shape: StadiumBorder(side: BorderSide(color: isSelected ? Colors.lightBlueAccent : Colors.grey.withOpacity(0.3))),
           selectedColor: Colors.lightBlueAccent,
           backgroundColor: Colors.grey[100],
-          labelStyle:
-              TextStyle(color: isSelected ? Colors.white : Colors.black87),
+          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
           elevation: isSelected ? 2 : 0,
           pressElevation: 2,
         );
@@ -501,8 +335,8 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
   Widget _classificacaoPreview() {
     final scored = _scoreAtual();
     final classe = scored.classe;
-    final color = _badgeColor(classe);
-    final p = scored.raw;
+    final color  = _badgeColor(classe);
+    final p      = scored.raw;
     final progress = (scored.scaled / 10.0).clamp(0.0, 1.0);
 
     return Card(
@@ -515,61 +349,188 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: color.withOpacity(0.12),
-                child: Icon(Icons.assessment, color: color, size: 18),
-              ),
+              CircleAvatar(radius: 16, backgroundColor: color.withOpacity(0.12),
+                child: Icon(Icons.assessment, color: color, size: 18)),
               const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  "Pré-visualização da Classificação",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-              ),
+              const Expanded(child: Text("Pré-visualização da Classificação",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  classe,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(999)),
+                child: Text(classe, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               ),
-            ]),
+            ]), 
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 10,
-                backgroundColor: Colors.grey.shade200,
-                color: color,
+                value: progress, minHeight: 10,
+                backgroundColor: Colors.grey.shade200, color: color,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              "Pontuação atual: $p",
-              style:
-                  TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 13),
-            ),
+            Text("Pontuação atual: $p",
+              style: TextStyle(color: Colors.black.withOpacity(0.6), fontSize: 13)),
           ],
         ),
       ),
     );
   }
 
+  // ---------- Firestore ----------
+  Future<void> _salvarRascunho() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Faça login para salvar rascunho.")),
+        );
+      }
+      return;
+    }
+
+    final scored = _scoreAtual();
+    final data = <String, dynamic>{
+      "createdByUid":   user.uid,
+      "createdByEmail": user.email,
+      "createdByName":  user.displayName,
+      "status": "draft",
+      "nome": _nomeController.text,
+      "observacoes": _obsController.text,
+      "tipoIncidente": tipoIncidente,
+      "localIncidente": localIncidente,
+      "turno": turno,
+      "sintomas": sintomas,
+      "resultado": scored.classe,
+      "pontuacao": scored.raw,
+      "dataHora": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
+    };
+
+    final docId = widget.notificacao?["id"] as String?;
+    try {
+      if (docId != null && docId.isNotEmpty) {
+        // update mantendo createdAt
+        await FirebaseFirestore.instance
+            .collection('notifications')
+            .doc(docId)
+            .set(data, SetOptions(merge: true));
+      } else {
+        // novo rascunho com createdAt
+        await FirebaseFirestore.instance
+            .collection('notifications')
+            .add({...data, "createdAt": FieldValue.serverTimestamp()});
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Rascunho salvo no Firebase.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Falha ao salvar rascunho: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _enviarNotificacao() async {
+    final faltando = <String>[];
+    if (_nomeController.text.trim().isEmpty) faltando.add("Nome");
+    if (tipoIncidente == null)             faltando.add("Tipo de Incidente");
+    if (localIncidente == null)            faltando.add("Local do Incidente");
+    if (turno == null)                     faltando.add("Turno");
+    if (faltando.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Preencha: ${faltando.join(", ")}")),
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Faça login para enviar a notificação.")),
+        );
+      }
+      return;
+    }
+
+    final scored = _scoreAtual();
+    final data = <String, dynamic>{
+      "createdByUid":   user.uid,
+      "createdByEmail": user.email,
+      "createdByName":  user.displayName,
+      "status": "final",
+      "nome": _nomeController.text,
+      "observacoes": _obsController.text,
+      "tipoIncidente": tipoIncidente,
+      "localIncidente": localIncidente,
+      "turno": turno,
+      "sintomas": sintomas,
+      "resultado": scored.classe,
+      "pontuacao": scored.raw,
+      "dataHora": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
+    };
+
+    final docId = widget.notificacao?["id"] as String?;
+    try {
+      DocumentReference<Map<String, dynamic>> docRef;
+      if (docId != null && docId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('notifications')
+            .doc(docId)
+            .set(data, SetOptions(merge: true));
+        docRef = FirebaseFirestore.instance.collection('notifications').doc(docId);
+      } else {
+        docRef = await FirebaseFirestore.instance
+            .collection('notifications')
+            .add({...data, "createdAt": FieldValue.serverTimestamp()});
+      }
+
+      final dadosModal = {
+        "id": docRef.id,
+        "nome": _nomeController.text,
+        "observacoes": _obsController.text,
+        "tipoIncidente": tipoIncidente,
+        "localIncidente": localIncidente,
+        "turno": turno,
+        "sintomas": sintomas,
+        "resultado": scored.classe,
+        "pontuacao": scored.raw,
+        "dataHora": DateTime.now().toIso8601String(),
+      };
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Notificação registrada no Firebase.")),
+        );
+      }
+      if (!mounted) return;
+      await showResumoNotificacaoModal(
+        context,
+        dados: dadosModal,
+        pontuacao: scored.raw,
+        classificacao: scored.classe,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Falha ao salvar no Firebase: $e")),
+        );
+      }
+    }
+  }
+
+  // ---------- Build ----------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.notificacao != null
-            ? "Editar Notificação"
-            : "Nova Notificação"),
+        title: Text(widget.notificacao != null ? "Editar Notificação" : "Nova Notificação"),
         backgroundColor: Colors.lightBlueAccent,
         elevation: 1,
       ),
@@ -581,18 +542,13 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
             _sectionCard(
               icon: Icons.description_outlined,
               title: "Identificação",
-              subtitle:
-                  "Dê um nome para localizar esta notificação depois (ex.: “Queda no banheiro – Paciente X”).",
+              subtitle: "Dê um nome (ex.: “Queda no banheiro – Paciente X”).",
               child: TextField(
                 controller: _nomeController,
                 decoration: InputDecoration(
                   labelText: "Nome da Notificação",
-                  hintText: "Ex.: Queda no banheiro – Paciente X",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true, fillColor: Colors.white,
                 ),
               ),
             ),
@@ -626,8 +582,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
             _sectionCard(
               icon: Icons.healing_outlined,
               title: "Sintomas",
-              subtitle:
-                  "Selecione todos os sintomas observados. Isso impacta diretamente a classificação.",
+              subtitle: "Selecione todos os sintomas observados.",
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -635,22 +590,14 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                     options: sintomasPontuacao.keys.toList(),
                     current: sintomas,
                     onToggle: (op, value) {
-                      setState(() {
-                        if (value) {
-                          sintomas.add(op);
-                        } else {
-                          sintomas.remove(op);
-                        }
-                      });
+                      setState(() { value ? sintomas.add(op) : sintomas.remove(op); });
                     },
                   ),
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
-                      onPressed: () {
-                        setState(() => sintomas.clear());
-                      },
+                      onPressed: () => setState(() => sintomas.clear()),
                       icon: const Icon(Icons.clear_all, size: 18),
                       label: const Text("Limpar sintomas selecionados"),
                     ),
@@ -661,19 +608,16 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
             _sectionCard(
               icon: Icons.notes_outlined,
               title: "Observações adicionais",
-              subtitle: "Descreva detalhes relevantes que não se encaixam nos campos acima.",
+              subtitle: "Detalhes relevantes, medidas adotadas, etc.",
               child: TextField(
                 controller: _obsController,
                 maxLines: 6,
                 minLines: 4,
                 textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
-                  hintText: "Ex.: dinâmica do evento, medidas adotadas, equipes envolvidas...",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
+                  hintText: "Ex.: dinâmica do evento, equipes, medidas...",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true, fillColor: Colors.white,
                 ),
               ),
             ),
@@ -686,12 +630,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
           decoration: BoxDecoration(
             color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2)),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, -2))],
           ),
           child: Row(
             children: [
@@ -711,9 +650,7 @@ class _NovaNotificacaoPageState extends State<NovaNotificacaoPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.lightBlueAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 2,
                   ),
                 ),

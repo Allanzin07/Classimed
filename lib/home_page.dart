@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'nova_notificacao_page.dart';
 import 'minhas_notificacoes_page.dart';
+import 'dashboards_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,7 +11,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   late final AnimationController _pulse;
 
@@ -110,21 +112,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           child: _GlassCard(
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Colors.lightBlueAccent.withOpacity(0.15),
-                                child: const Icon(Icons.notifications, color: Colors.lightBlueAccent),
+                                backgroundColor:
+                                    Colors.lightBlueAccent.withOpacity(0.15),
+                                child: const Icon(Icons.notifications,
+                                    color: Colors.lightBlueAccent),
                               ),
                               title: const Text("Minhas Notificações",
-                                  style: TextStyle(fontWeight: FontWeight.w700)),
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700)),
                               subtitle: Text(
                                 "Veja, edite ou apague notificações salvas",
-                                style: TextStyle(color: Colors.black.withOpacity(0.6)),
+                                style: TextStyle(
+                                    color: Colors.black.withOpacity(0.6)),
                               ),
-                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                              trailing:
+                                  const Icon(Icons.arrow_forward_ios, size: 16),
                               onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const MinhasNotificacoesPage(),
+                                    builder: (_) =>
+                                        const MinhasNotificacoesPage(),
                                   ),
                                 );
                               },
@@ -244,10 +252,14 @@ class _GlowingCTA extends StatelessWidget {
                             height: 32,
                             child: CircularProgressIndicator(
                               strokeWidth: 3,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Icon(Icons.add, key: ValueKey('plus'), size: 48, color: Colors.white),
+                        : const Icon(Icons.add,
+                            key: ValueKey('plus'),
+                            size: 48,
+                            color: Colors.white),
                   ),
                 ),
               ),
@@ -333,7 +345,20 @@ class _DrawerContent extends StatelessWidget {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const MinhasNotificacoesPage()),
+                MaterialPageRoute(
+                    builder: (_) => const MinhasNotificacoesPage()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: Icon(Icons.insights, color: Colors.lightBlue[700]),
+            title: const Text("Dashboards"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DashboardsPage()),
               );
             },
           ),
