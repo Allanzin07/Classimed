@@ -1,7 +1,18 @@
+// lib/resumo_notificacao_modal.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+/// >>> Chaves do EmailJS vindas do build.
+/// Use --dart-define para cada dev/máquina:
+///   --dart-define=EMAILJS_SERVICE_ID=service_xxx
+///   --dart-define=EMAILJS_TEMPLATE_ID=template_xxx
+///   --dart-define=EMAILJS_PUBLIC_KEY=public_xxx
+final _emailServiceId = dotenv.env['EMAILJS_SERVICE_ID'] ?? '';
+final _emailTemplateId = dotenv.env['EMAILJS_TEMPLATE_ID'] ?? '';
+final _emailPublicKey  = dotenv.env['EMAILJS_PUBLIC_KEY'] ?? '';
 
 Future<void> showResumoNotificacaoModal(
   BuildContext context, {
@@ -39,13 +50,16 @@ Future<void> showResumoNotificacaoModal(
 
           return Padding(
             padding: EdgeInsets.only(
-                top: 8, bottom: bottomInset > 0 ? bottomInset : 0),
+              top: 8,
+              bottom: bottomInset > 0 ? bottomInset : 0,
+            ),
             child: SingleChildScrollView(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // handle da modal
                   Center(
                     child: Container(
                       width: 40,
@@ -58,6 +72,7 @@ Future<void> showResumoNotificacaoModal(
                     ),
                   ),
 
+                  // título + badge de classificação
                   Row(
                     children: [
                       const Icon(Icons.fact_check_outlined, size: 22),
@@ -66,12 +81,16 @@ Future<void> showResumoNotificacaoModal(
                         child: Text(
                           "Resumo da Ocorrência",
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w800),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: corClasse,
                           borderRadius: BorderRadius.circular(999),
@@ -79,7 +98,9 @@ Future<void> showResumoNotificacaoModal(
                         child: Text(
                           classificacao,
                           style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w700),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -87,6 +108,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
+                  // barra de risco
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
@@ -104,6 +126,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 18),
 
+                  // grupo: identificação
                   _grupoCard(
                     titulo: "Identificação",
                     icon: Icons.badge_outlined,
@@ -115,6 +138,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
+                  // grupo: incidente
                   _grupoCard(
                     titulo: "Incidente",
                     icon: Icons.local_hospital_outlined,
@@ -127,6 +151,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
+                  // grupo: sintomas
                   _grupoCard(
                     titulo: "Sintomas Selecionados",
                     icon: Icons.healing_outlined,
@@ -134,20 +159,24 @@ Future<void> showResumoNotificacaoModal(
                       if (sintomas.isEmpty)
                         Text(
                           "Nenhum sintoma selecionado",
-                          style:
-                              TextStyle(color: Colors.black.withOpacity(0.6)),
+                          style: TextStyle(
+                            color: Colors.black.withOpacity(0.6),
+                          ),
                         )
                       else
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: sintomas
-                              .map((s) => Chip(
-                                    label: Text(s),
-                                    backgroundColor: Colors.grey[100],
-                                    side: BorderSide(
-                                        color: Colors.grey.withOpacity(0.3)),
-                                  ))
+                              .map(
+                                (s) => Chip(
+                                  label: Text(s),
+                                  backgroundColor: Colors.grey[100],
+                                  side: BorderSide(
+                                    color: Colors.grey.withOpacity(0.3),
+                                  ),
+                                ),
+                              )
                               .toList(),
                         ),
                     ],
@@ -155,6 +184,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
+                  // grupo: observações
                   _grupoCard(
                     titulo: "Observações",
                     icon: Icons.notes_outlined,
@@ -174,6 +204,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 16),
 
+                  // grupo: grau
                   _grupoCard(
                     titulo: "Grau da Ocorrência",
                     icon: Icons.verified_outlined,
@@ -182,7 +213,9 @@ Future<void> showResumoNotificacaoModal(
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: corClasse,
                               borderRadius: BorderRadius.circular(12),
@@ -201,7 +234,8 @@ Future<void> showResumoNotificacaoModal(
                             child: Text(
                               "Classificação calculada com base nos campos selecionados.",
                               style: TextStyle(
-                                  color: Colors.black.withOpacity(0.6)),
+                                color: Colors.black.withOpacity(0.6),
+                              ),
                             ),
                           ),
                         ],
@@ -211,6 +245,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 20),
 
+                  // botões concluir/voltar
                   Row(
                     children: [
                       Expanded(
@@ -249,7 +284,7 @@ Future<void> showResumoNotificacaoModal(
 
                   const SizedBox(height: 12),
 
-                  // ENVIAR POR E-MAIL (EmailJS)
+                  // botão: enviar por e-mail (EmailJS)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepPurple,
@@ -279,7 +314,9 @@ Future<void> showResumoNotificacaoModal(
                             ),
                             ElevatedButton(
                               onPressed: () => Navigator.pop(
-                                  ctx, emailController.text.trim()),
+                                ctx,
+                                emailController.text.trim(),
+                              ),
                               child: const Text("Enviar"),
                             ),
                           ],
@@ -289,17 +326,29 @@ Future<void> showResumoNotificacaoModal(
                       if (destino == null || destino.isEmpty) return;
 
                       try {
+                        // valida chaves
+                        final missing = <String>[];
+                        if (_emailServiceId.isEmpty) {
+                          missing.add('EMAILJS_SERVICE_ID');
+                        }
+                        if (_emailTemplateId.isEmpty) {
+                          missing.add('EMAILJS_TEMPLATE_ID');
+                        }
+                        if (_emailPublicKey.isEmpty) {
+                          missing.add('EMAILJS_PUBLIC_KEY');
+                        }
+                        if (missing.isNotEmpty) {
+                          throw Exception(
+                            "Variáveis ausentes: ${missing.join(', ')}. "
+                            "Passe-as via --dart-define no build.",
+                          );
+                        }
+
                         final user = FirebaseAuth.instance.currentUser;
                         final remetente =
-                            user?.email ?? "desconhecido@classimed.com";
+                            user?.email ?? "noreply@classimed.com";
 
-                        // === PREENCHA com seus valores do EmailJS ===
-                        final serviceId = "service_66b1ch8";
-                        final templateId = "template_enm0yc8";
-                        final publicKey = "ZBFwHxZkRa_YysVgU";
-                        // ===========================================
-
-                        // Texto opcional (se seu template ainda tiver {{message}})
+                        // corpo bruto (se seu template tiver {{message}})
                         final conteudo = '''
 Resumo da Ocorrência
 
@@ -313,7 +362,7 @@ Data/Hora: ${dados["dataHora"]}
 Observações: ${dados["observacoes"] ?? "-"}
 ''';
 
-                        // Variáveis do template HTML
+                        // variáveis para template HTML do EmailJS
                         final badgeColor = _badgeHex(classificacao);
                         final riskPercent = _riskPercent(pontuacao);
 
@@ -337,24 +386,21 @@ Observações: ${dados["observacoes"] ?? "-"}
                           "badge_color": badgeColor,
                           "risk_percent": riskPercent,
 
-                          "message": conteudo, // se ainda usar {{message}}
+                          // opcional
+                          "message": conteudo,
                         };
 
-                        final url = Uri.parse(
-                          "https://api.emailjs.com/api/v1.0/email/send",
-                        );
-
                         final response = await http.post(
-                          url,
+                          Uri.parse("https://api.emailjs.com/api/v1.0/email/send"),
                           headers: const {
-                            "origin":
-                                "http://localhost", // PRODUÇÃO: troque pela origem real
+                            // Em produção, troque pela sua origem real (domínio do app)
+                            "origin": "http://localhost",
                             "Content-Type": "application/json",
                           },
                           body: json.encode({
-                            "service_id": serviceId.trim(),
-                            "template_id": templateId.trim(),
-                            "user_id": publicKey.trim(),
+                            "service_id": _emailServiceId.trim(),
+                            "template_id": _emailTemplateId.trim(),
+                            "user_id": _emailPublicKey.trim(), // Public Key
                             "template_params": params,
                           }),
                         );
@@ -362,11 +408,13 @@ Observações: ${dados["observacoes"] ?? "-"}
                         if (response.statusCode == 200) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text("Resumo enviado com sucesso!")),
+                              content: Text("Resumo enviado com sucesso!"),
+                            ),
                           );
                         } else {
                           throw Exception(
-                              "Erro ${response.statusCode}: ${response.body}");
+                            "Erro ${response.statusCode}: ${response.body}",
+                          );
                         }
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -414,15 +462,24 @@ Widget _grupoCard({
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.lightBlueAccent.withOpacity(0.15),
-              child: Icon(icon, color: Colors.lightBlueAccent, size: 18),
-            ),
-            const SizedBox(width: 8),
-            Text(titulo, style: const TextStyle(fontWeight: FontWeight.w800)),
-          ]),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.lightBlueAccent.withOpacity(0.15),
+                child: const Icon(
+                  Icons.info_outline,
+                  color: Colors.lightBlueAccent,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                titulo,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           ...children,
         ],

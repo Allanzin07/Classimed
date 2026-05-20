@@ -1,3 +1,5 @@
+E no arquivo pubspec.yamal:
+
 name: classimed
 description: Aplicativo para classificação de incidentes médicos - ClassiMed
 publish_to: 'none' 
@@ -17,7 +19,8 @@ dependencies:
   flutter_email_sender: ^6.0.3
   http: ^1.2.2
   pdf: ^3.10.7
-  printing: ^5.13.0  
+  printing: ^5.13.0 
+  flutter_dotenv: ^5.1.0 
 
 dev_dependencies:
   flutter_test:
@@ -28,3 +31,4 @@ flutter:
   assets:
     - assets/logo.png
     - assets/logo-robo-nome.png
+    - .env
