@@ -34,20 +34,11 @@ class _HomePageState extends State<HomePage>
   }
 
   void _iniciarNotificacao() {
-    setState(() {
-      _isLoading = true;
-    });
-
-    Future.delayed(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const NovaNotificacaoPage()),
-      );
-    });
+    // Navega instantaneamente sem o delay de 3 segundos
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NovaNotificacaoPage()),
+    );
   }
 
   Future<void> _logout() async {
@@ -337,7 +328,7 @@ class _DrawerContent extends StatelessWidget {
             ),
           ),
 
-          // 🔹 Minhas Notificações
+          // Minhas Notificações
           ListTile(
             leading: Icon(Icons.notifications, color: Colors.lightBlue[700]),
             title: const Text("Minhas Notificações"),
@@ -363,7 +354,7 @@ class _DrawerContent extends StatelessWidget {
             },
           ),
 
-          // 🔹 Botão Sair
+          // Botão Sair
           ListTile(
             leading: Icon(Icons.logout, color: Colors.red[700]),
             title: const Text(

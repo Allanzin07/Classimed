@@ -17,14 +17,17 @@ class _DashboardsPageState extends State<DashboardsPage> {
   String _tipoFiltro = 'Todos';
 
   DateTime? _fromDateForRange(String range) {
+    // Pegamos a data atual limpando as horas, minutos e segundos (Início do dia: 00:00:00)
     final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
     switch (range) {
       case '7d':
-        return now.subtract(const Duration(days: 7));
+        return todayStart.subtract(const Duration(days: 7));
       case '30d':
-        return now.subtract(const Duration(days: 30));
+        return todayStart.subtract(const Duration(days: 30));
       case '90d':
-        return now.subtract(const Duration(days: 90));
+        return todayStart.subtract(const Duration(days: 90));
       default:
         return null;
     }
@@ -161,7 +164,7 @@ class _DashboardsPageState extends State<DashboardsPage> {
           final docs = snapshot.data?.docs ?? [];
           var list = docs.map((d) => {'id': d.id, ...d.data()}).toList();
 
-          // Filtragem
+          // Filtragem de Tempo corrigida para evitar perdas por segundos
           final from = _fromDateForRange(_range);
           if (from != null) {
             list = list
